@@ -10,7 +10,7 @@ st.set_page_config(
     layout="wide"
 )
 
-# Xüsusi CSS dizaynı (Tkinter-dəki rənglərlə eyni)
+# Xüsusi CSS dizaynı
 st.markdown("""
     <style>
     .main {
@@ -32,10 +32,14 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# SUPABASE QOŞULMA MƏLUMATLARI
+# SUPABASE QOŞULMA MƏLUMATLARI (Secrets-dən oxunur)
 # ==========================================
-SUPABASE_URL = "https://iqfxtorbnjvnqsdgloyd.supabase.co"  
-SUPABASE_KEY = "sb_secret_jn29JAkC4TmH4IIw92v1sQ_ptlfYM_J"                  
+try:
+    SUPABASE_URL = st.secrets["supabase"]["url"]
+    SUPABASE_KEY = st.secrets["supabase"]["key"]
+except Exception as e:
+    st.error("❌ Supabase məlumatları Streamlit Secrets-də tapılmadı! Zəhmət olmasa Secrets bölməsini tənzimləyin.")
+    st.stop()
 
 # Sənin təyin etdiyin güclü şifrə
 ADMIN_SECRET_PASSWORD = "AliGo_Secure_Admin_2026#X9!z"
@@ -96,7 +100,6 @@ with tab1:
             users = res.data if res.data else []
             
             if users:
-                # Cədvəl üçün məlumatları tənzimləyirik
                 table_data = []
                 for idx, u in enumerate(users, 1):
                     created_at = str(u.get("created_at", ""))[:19].replace("T", " ")
@@ -113,7 +116,7 @@ with tab1:
         except Exception as e:
             st.error(f"❌ Xəta baş verdi: {e}")
     else:
-            st.error("❌ Supabase bağlantısı qurulmadı!")
+        st.error("❌ Supabase bağlantısı qurulmadı!")
 
 # 2-ci Tab: Bəyənmələr və Rəylər
 with tab2:
