@@ -1,5 +1,5 @@
 import streamlit as st
-from supabase import create_client
+import requests
 
 # ==========================================
 # SƏHİFƏ TƏNZİMLƏMƏLƏRİ VƏ DİZAYN (Dark Theme)
@@ -10,7 +10,6 @@ st.set_page_config(
     layout="wide"
 )
 
-# Xüsusi CSS dizaynı
 st.markdown("""
     <style>
     .main {
@@ -32,17 +31,35 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==========================================
-# SUPABASE QOŞULMA MƏLUMATLARI (Secrets-dən oxunur)
+# SUPABASE MƏLUMATLARI (Secrets-dən)
 # ==========================================
 try:
     SUPABASE_URL = st.secrets["supabase"]["url"]
     SUPABASE_KEY = st.secrets["supabase"]["key"]
 except Exception as e:
-    st.error("❌ Supabase məlumatları Streamlit Secrets-də tapılmadı! Zəhmət olmasa Secrets bölməsini tənzimləyin.")
+    st.error("❌ Supabase məlumatları Streamlit Secrets-də tapılmadı!")
     st.stop()
 
-# Sənin təyin etdiyin güclü şifrə
 ADMIN_SECRET_PASSWORD = "AliGo_Secure_Admin_2026#X9!z"
+
+# Yardımçı funksiya: Supabase-dən birbaşa məlumat çəkmək üçün
+def fetch_from_supabase(table_name):
+    headers = {
+        "apikey": SUPABASE_KEY,
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "Content-Type": "application/json"
+    }
+    url = f"{SUPABASE_URL}/rest/v1/{table_name}?select=*"
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            return response.json()
+        else:
+            st.error(f"Supabase xətası ({response.status_code}): {response.text}")
+            return []
+    except Exception as ex:
+        st.error(f"Sorğu xətası: {ex}")
+        return []
 
 # ==========================================
 # GİRİŞ (ŞİFRƏ) YOXLAMASI
@@ -67,18 +84,6 @@ if not st.session_state.admin_logged_in:
     st.stop()
 
 # ==========================================
-# SUPABASE BAĞLANTISI
-# ==========================================
-@st.cache_resource
-def init_supabase():
-    try:
-        return create_client(SUPABASE_URL, SUPABASE_KEY)
-    except Exception as e:
-        return None
-
-supabase = init_supabase()
-
-# ==========================================
 # ADMIN PANELİNİN ƏSAS HİSSƏSİ
 # ==========================================
 st.markdown("⚡ **ALIGO İDARƏETMƏ PANELİ**")
@@ -88,59 +93,44 @@ if st.button("🔄 Məlumatları Yenilə"):
 
 st.markdown("---")
 
-# Tablar (Səhifələr)
 tab1, tab2 = st.tabs(["  👥 İstifadəçilər  ", "  👍 Bəyənmələr & Rəylər  "])
 
 # 1-ci Tab: İstifadəçilər
 with tab1:
     st.subheader("Qeydiyyatdan Keçən İstifadəçilər")
-    if supabase:
-        try:
-            res = supabase.table("users_log").select("*").order("created_at", desc=True).execute()
-            users = res.data if res.data else []
-            
-            if users:
-                table_data = []
-                for idx, u in enumerate(users, 1):
-                    created_at = str(u.get("created_at", ""))[:19].replace("T", " ")
-                    table_data.append({
-                        "#": idx,
-                        "İstifadəçi Adı": u.get("name", "Adsız"),
-                        "Email Ünvanı": u.get("email", "-"),
-                        "User Code (ID)": u.get("user_code", "-"),
-                        "Giriş Tarixi": created_at
-                    })
-                st.dataframe(table_data, use_container_width=True)
-            else:
-                st.info("ℹ️ Hələ ki bazada heç bir istifadəçi qeydi yoxdur.")
-        except Exception as e:
-            st.error(f"❌ Xəta baş verdi: {e}")
+    users = fetch_from_supabase("users_log")
+    
+    if users:
+        table_data = []
+        for idx, u in enumerate(users, 1):
+            created_at = str(u.get("created_at", ""))[:19].replace("T", " ")
+            table_data.append({
+                "#": idx,
+                "İstifadəçi Adı": u.get("name", "Adsız"),
+                "Email Ünvanı": u.get("email", "-"),
+                "User Code (ID)": u.get("user_code", "-"),
+                "Giriş Tarixi": created_at
+            })
+        st.dataframe(table_data, use_container_width=True)
     else:
-        st.error("❌ Supabase bağlantısı qurulmadı!")
+        st.info("ℹ️ Hələ ki bazada heç bir istifadəçi qeydi yoxdur və ya bağlantı gözlənilir.")
 
 # 2-ci Tab: Bəyənmələr və Rəylər
 with tab2:
     st.subheader("İstifadəçi Reaksiyaları və Mesajlar")
-    if supabase:
-        try:
-            res = supabase.table("likes_log").select("*").order("id", desc=True).execute()
-            likes = res.data if res.data else []
-            
-            if likes:
-                table_data_likes = []
-                for idx, l in enumerate(likes, 1):
-                    created_at = str(l.get("created_at", ""))[:19].replace("T", " ")
-                    table_data_likes.append({
-                        "#": idx,
-                        "İstifadəçi": l.get("user_name", "Naməlum"),
-                        "Reaksiya": l.get("feedback_type", "-"),
-                        "AI Cavabı / Mesaj": l.get("message", "-"),
-                        "Tarix": created_at
-                    })
-                st.dataframe(table_data_likes, use_container_width=True)
-            else:
-                st.info("ℹ️ Hələ ki bazada heç bir bəyənmə və ya rəy yoxdur.")
-        except Exception as e:
-            st.error(f"❌ Xəta baş verdi: {e}")
+    likes = fetch_from_supabase("likes_log")
+    
+    if likes:
+        table_data_likes = []
+        for idx, l in enumerate(likes, 1):
+            created_at = str(l.get("created_at", ""))[:19].replace("T", " ")
+            table_data_likes.append({
+                "#": idx,
+                "İstifadəçi": l.get("user_name", "Naməlum"),
+                "Reaksiya": l.get("feedback_type", "-"),
+                "AI Cavabı / Mesaj": l.get("message", "-"),
+                "Tarix": created_at
+            })
+        st.dataframe(table_data_likes, use_container_width=True)
     else:
-        st.error("❌ Supabase bağlantısı qurulmadı!")
+        st.info("ℹ️ Hələ ki bazada heç bir bəyənmə və ya rəy yoxdur.")
